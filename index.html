@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ARRIVAL: ONDRA</title>
+    <!-- Import čistého fontu Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            /* Pro Apple zařízení */
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            /* Jemný gradient, aby to nebylo úplně černé */
+            background: radial-gradient(circle at 50% 30%, #1a1a1a 0%, #000000 80%);
+        }
+
+        /* --- UI LAYER --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            /* Klikání skrz */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 5vh;
+            /* Odsazení od spodku */
+        }
+
+        /* --- SKLENĚNÝ ODPOČET (Glassmorphism) --- */
+        .countdown-card {
+            background: rgba(20, 20, 20, 0.6);
+            /* Poloprůhledná černá */
+            backdrop-filter: blur(20px);
+            /* Efekt rozmazání pozadí (jako iOS) */
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 25px 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+            transform: translateY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .countdown-header {
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .countdown-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 30px;
+            text-align: center;
+        }
+
+        .time-unit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .number {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1;
+            color: #ffffff;
+            font-feature-settings: "tnum";
+            margin-bottom: 5px;
+        }
+
+        .label {
+            font-size: 0.7rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        /* Oddělovače mezi čísly (dvojtečky) */
+        .time-unit:not(:last-child)::after {
+            content: ":";
+            position: absolute;
+            right: -18px;
+            top: 5px;
+            font-size: 2rem;
+            color: #333;
+            font-weight: 200;
+        }
+
+        .time-unit {
+            position: relative;
+        }
+
+        /* Pro pozicování dvojtečky */
+
+
+        /* --- 3D LABELS (Praha -> Biskupice) --- */
+        .world-label {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            border-left: 3px solid #ff4400;
+            /* Oranžový akcent */
+            padding: 8px 12px;
+            border-radius: 0 4px 4px 0;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            display: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .world-label strong {
+            display: block;
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            margin-bottom: 2px;
+        }
+
+        .world-label .details {
+            font-size: 0.7rem;
+            color: #aaa;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .world-label .coords {
+            font-size: 0.6rem;
+            color: #555;
+            margin-top: 4px;
+            font-family: monospace;
+        }
+
+
+        /* --- TECH INFO (Top Left) --- */
+        .tech-info {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #444;
+            line-height: 1.5;
+        }
+
+        .tech-info span {
+            color: #ff4400;
+        }
+
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #666;
+            font-size: 0.8rem;
+            letter-spacing: 0.2em;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 20px;
+            display: none;
+        }
+
+        /* --- MOBILE RESPONSIVITY --- */
+        @media (max-width: 768px) {
+            .countdown-card {
+                width: 85%;
+                /* Širší na mobilu */
+                padding: 20px;
+                bottom: 20px;
+                /* Trochu výš */
+            }
+
+            .countdown-grid {
+                gap: 15px;
+                /* Menší mezery */
+            }
+
+            .number {
+                font-size: 2.2rem;
+                /* Menší čísla aby se vešly */
+            }
+
+            .time-unit:not(:last-child)::after {
+                right: -10px;
+                font-size: 1.5rem;
+                top: 5px;
+            }
+
+            .tech-info {
+                display: none;
+                /* Skryjeme technické kecy na mobilu pro čistotu */
+            }
+
+            .world-label {
+                padding: 4px 8px;
+            }
+
+            .world-label strong {
+                font-size: 0.7rem;
+            }
+
+            .world-label .coords {
+                display: none;
+            }
+
+            /* Skryjeme souřadnice na mobilu */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+
+        <div class="tech-info">
+            // TARGET: <span>ONDRA</span><br>
+            // MISSION: <span>WEEKEND_VISIT</span><br>
+            // STATUS: <span>SYNCING...</span>
+        </div>
+
+        <div class="loader" id="loader">LOADING ASSETS...</div>
+
+        <!-- 3D Labels -->
+        <div id="label-start" class="world-label">
+            <strong>PRAHA 5 (Zborovská)</strong>
+            <div class="details">Departure Point</div>
+            <div class="coords">50.07° N, 14.40° E</div>
+        </div>
+
+        <div id="label-end" class="world-label">
+            <strong>BISKUPICE 72</strong>
+            <div class="details">Target Location</div>
+            <div class="coords">49.03° N, 16.03° E</div>
+        </div>
+
+        <!-- Glass Countdown Card -->
+        <div class="countdown-card">
+            <div class="countdown-header">Čas do příjezdu</div>
+            <div class="countdown-grid">
+                <div class="time-unit">
+                    <span class="number" id="days">00</span>
+                    <span class="label">Dny</span>
+                </div>
+                <div class="time-unit">
+                    <span class="number" id="hours">00</span>
+                    <span class="label">Hod</span>
+                </div>
+                <div class="time-unit">
+                    <span class="number" id="minutes">00</span>
+                    <span class="label">Min</span>
+                </div>
+                <div class="time-unit">
+                    <span class="number" id="seconds">00</span>
+                    <span class="label">Sek</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // --- 1. CONFIGURATION ---
+        const targetDate = new Date('December 13, 2025 16:00:00').getTime();
+
+        // Cesta k modelu
+        const myModelPath = 'Domecek.glb';
+
+        // --- 2. SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+
+        // Kamera - Upravena pro lepší úhel na mobilu
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        // Nastavíme kameru trochu blíž a níž, aby dům vypadal majestátněji
+        // Původně: 40, 30, 40 -> Nově: 30, 20, 30
+        camera.position.set(30, 20, 30);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio); // Důležité pro ostrý obraz na iPhonech
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.8; // Zpomalíme rotaci pro klidnější dojem
+        controls.enableZoom = true; // Povolíme zoom, kdyby si to chtěl prohlédnout zblízka
+        controls.maxPolarAngle = Math.PI / 2 - 0.1; // Zabráníme podívat se "pod zem"
+
+        // --- 3. LIGHTING (Cinematic) ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Trochu jasnější ambient
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(15, 25, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; // Vyšší kvalita stínů
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        // Modré zadní světlo pro atmosféru (Rim light)
+        const rimLight = new THREE.SpotLight(0x0077ff, 2);
+        rimLight.position.set(-10, 5, -20);
+        rimLight.lookAt(0, 0, 0);
+        scene.add(rimLight);
+
+        // --- 4. TRAJECTORY & MARKERS ---
+        // Body
+        const startPoint = new THREE.Vector3(-50, 35, -50);
+        const endPoint = new THREE.Vector3(0, 0, 0);
+        const controlPoint = new THREE.Vector3(-10, 45, -10);
+
+        // Křivka
+        const curve = new THREE.QuadraticBezierCurve3(startPoint, controlPoint, endPoint);
+        const points = curve.getPoints(60);
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const lineMaterial = new THREE.LineDashedMaterial({
+            color: 0xff4400, // Oranžová zůstává jako akcent
+            linewidth: 1,
+            scale: 1,
+            dashSize: 1.5,
+            gapSize: 1,
+            opacity: 0.6,
+            transparent: true
+        });
+        const trajectoryLine = new THREE.Line(lineGeometry, lineMaterial);
+        trajectoryLine.computeLineDistances();
+        scene.add(trajectoryLine);
+
+        // Marker Start
+        const startMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(0.4, 8, 8),
+            new THREE.MeshBasicMaterial({ color: 0xff4400 })
+        );
+        startMarker.position.copy(startPoint);
+        scene.add(startMarker);
+
+        // Traveler (Ondra)
+        const traveler = new THREE.Mesh(
+            new THREE.ConeGeometry(0.5, 1.5, 8),
+            new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
+        // Otočíme kužel, aby špička směřovala dopředu po ose
+        traveler.geometry.rotateX(Math.PI / 2);
+        scene.add(traveler);
+
+        // Vertical drop line (Start -> Ground)
+        const dropLine = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([startPoint, new THREE.Vector3(startPoint.x, -5, startPoint.z)]),
+            new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.3 })
+        );
+        scene.add(dropLine);
+
+        // --- 5. HOUSE MODEL ---
+        const modelGroup = new THREE.Group();
+        scene.add(modelGroup);
+
+        // Fallback House (vylepšený materiál, žádné dráty/síť)
+        function createPlaceholderHouse() {
+            const solidMaterial = new THREE.MeshStandardMaterial({
+                color: 0xeeeeee, // Bílá omítka
+                roughness: 0.9,
+                metalness: 0.0
+            });
+            const roofMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333333, // Tmavá střecha
+                roughness: 0.6
+            });
+
+            // Základ
+            const box = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 8), solidMaterial);
+            box.position.y = 3;
+            box.castShadow = true;
+            box.receiveShadow = true;
+            modelGroup.add(box);
+
+            // Střecha
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(7.5, 3.5, 4), roofMaterial);
+            roof.position.y = 7.75;
+            roof.rotation.y = Math.PI / 4;
+            roof.scale.set(1, 1, 0.8);
+            roof.castShadow = true;
+            modelGroup.add(roof);
+
+            // Podlaha - Místo mřížky jen kruhová podstava (elegantní)
+            const floorGeo = new THREE.CircleGeometry(25, 64);
+            const floorMat = new THREE.MeshStandardMaterial({
+                color: 0x111111,
+                roughness: 1,
+                metalness: 0,
+                transparent: true,
+                opacity: 0.5
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -0.1;
+            floor.receiveShadow = true;
+            scene.add(floor);
+        }
+
+        // Load Model s Robustním Error Handlingem
+        async function loadModel() {
+            if (myModelPath) {
+                document.getElementById('loader').style.display = 'block';
+                const loader = new THREE.GLTFLoader();
+
+                try {
+                    loader.load(myModelPath, (gltf) => {
+                        const model = gltf.scene;
+
+                        // Auto-center & Scale logic
+                        const box = new THREE.Box3().setFromObject(model);
+                        const size = box.getSize(new THREE.Vector3());
+                        const center = box.getCenter(new THREE.Vector3());
+
+                        // Reset position to center
+                        model.position.x += (model.position.x - center.x);
+                        model.position.y += (model.position.y - center.y);
+                        model.position.z += (model.position.z - center.z);
+
+                        // Move bottom of the house to y=0
+                        model.position.y += size.y / 2;
+
+                        modelGroup.add(model);
+                        document.getElementById('loader').style.display = 'none';
+
+                        // Add soft floor shadow
+                        const floorGeo = new THREE.CircleGeometry(30, 64);
+                        const floorMat = new THREE.MeshStandardMaterial({
+                            color: 0x000000,
+                            roughness: 1,
+                            transparent: true,
+                            opacity: 0.3
+                        });
+                        const floor = new THREE.Mesh(floorGeo, floorMat);
+                        floor.rotation.x = -Math.PI / 2;
+                        floor.position.y = -0.1;
+                        floor.receiveShadow = true;
+                        scene.add(floor);
+
+                    }, undefined, (e) => {
+                        console.warn("Model load failed (Network/Parse error), using fallback.");
+                        createPlaceholderHouse();
+                        document.getElementById('loader').style.display = 'none';
+                    });
+                } catch (err) {
+                    console.warn("Model load failed (Try/Catch), using fallback.");
+                    createPlaceholderHouse();
+                    document.getElementById('loader').style.display = 'none';
+                }
+            } else {
+                createPlaceholderHouse();
+            }
+        }
+
+        loadModel();
+
+        // --- 6. PARTICLES (Subtle Atmosphere) ---
+        const particlesGeo = new THREE.BufferGeometry();
+        const pCount = 300;
+        const pPos = new Float32Array(pCount * 3);
+        for (let i = 0; i < pCount * 3; i++) pPos[i] = (Math.random() - 0.5) * 60;
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        const particlesMat = new THREE.PointsMaterial({
+            size: 0.15, color: 0xffffff, transparent: true, opacity: 0.2
+        });
+        const particleSystem = new THREE.Points(particlesGeo, particlesMat);
+        scene.add(particleSystem);
+
+
+        // --- 7. LABEL SYNC ---
+        const labelStart = document.getElementById('label-start');
+        const labelEnd = document.getElementById('label-end');
+
+        function updateLabel(pos, el) {
+            const v = pos.clone();
+            v.project(camera);
+
+            // Check visibility
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(v.x, v.y), camera);
+            // Simple frustum check is mostly enough here
+
+            if (v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1) {
+                const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-(v.y * 0.5) + 0.5) * window.innerHeight;
+                el.style.display = 'block';
+                el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+                el.style.left = '0'; // Reset CSS positioning used previously
+                el.style.top = '0';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
+        // --- 8. LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            controls.update();
+
+            // Particles drift
+            particleSystem.rotation.y = time * 0.02;
+
+            // Traveler Animation
+            const loopDuration = 8;
+            const t = (time % loopDuration) / loopDuration;
+            const pos = curve.getPointAt(t);
+            traveler.position.copy(pos);
+            const tangent = curve.getTangentAt(t).normalize();
+            traveler.lookAt(pos.clone().add(tangent));
+
+            // Render
+            renderer.render(scene, camera);
+
+            // Updates
+            updateLabel(startPoint, labelStart);
+            updateLabel(endPoint, labelEnd);
+        }
+        animate();
+
+
+        // --- 9. COUNTDOWN LOGIC ---
+        const daysEl = document.getElementById('days');
+        const hoursEl = document.getElementById('hours');
+        const minEl = document.getElementById('minutes');
+        const secEl = document.getElementById('seconds');
+
+        function updateTime() {
+            const now = new Date().getTime();
+            const diff = targetDate - now;
+
+            if (diff < 0) return;
+
+            daysEl.innerText = Math.floor(diff / (1000 * 60 * 60 * 24)).toString().padStart(2, '0');
+            hoursEl.innerText = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)).toString().padStart(2, '0');
+            minEl.innerText = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+            secEl.innerText = Math.floor((diff % (1000 * 60)) / 1000).toString().padStart(2, '0');
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+
+</html>
